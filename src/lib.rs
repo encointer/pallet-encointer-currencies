@@ -21,7 +21,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use host_calls::runtime_interfaces::distance;
+use host_calls::runtime_interfaces;
 use support::{decl_module, decl_storage, decl_event, ensure,
 	storage::{StorageDoubleMap, StorageMap, StorageValue},
 	traits::Currency,
@@ -32,7 +32,7 @@ use rstd::prelude::*;
 
 use sr_primitives::traits::{Verify, Member, CheckedAdd, IdentifyAccount};
 use sr_primitives::MultiSignature;
-use runtime_io::misc::print_utf8;
+use runtime_io::misc::{print_utf8, print_hex};
 use primitives::H256; 
 use codec::{Codec, Encode, Decode};
 
@@ -43,8 +43,6 @@ pub trait Trait: system::Trait {
 pub type CurrencyIndexType = u32;
 pub type LocationIndexType = u32;
 
-// L
-const MAX_LAT: i32 = 89_000_000;
 // Location in lat/lon. Translate float to u32 by round(value*10^6) giving a precision of at least 11cm
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Location {
@@ -53,12 +51,14 @@ pub struct Location {
 }
 pub type CurrencyIdentifier = H256;
 
+const MIN_DISTANCE_M : u32 = 100; // meetup locations must be that many meters apart
+
 decl_storage! {
 	trait Store for Module<T: Trait> as EncointerCeremonies {
-		Locations get(locations_registry): map CurrencyIdentifier => Vec<Location>;
+		Locations get(locations): map CurrencyIdentifier => Vec<Location>;
 		Bootstrappers get(bootstrappers): map CurrencyIdentifier => Vec<T::AccountId>;
 		// caution: index starts with 1, not 0! (because null and 0 is the same for state storage)
-		CurrencyIndex get(currency_index): map CurrencyIndexType => CurrencyIdentifier;
+		CurrencyIdentifiers get(currency_identifiers): map CurrencyIndexType => CurrencyIdentifier;
 		CurrencyCount get(currency_count): CurrencyIndexType;
 		// TODO: replace this with on-chain governance
 		CurrencyMaster get(currency_master) config(): T::AccountId;
@@ -74,9 +74,36 @@ decl_module! {
 		// this should be run off-chain in substraTEE-worker later
 		pub fn new_currency(origin, cid: CurrencyIdentifier, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> Result {
 			let sender = ensure_signed(origin)?;
-			let a=loc[0];
-			let b=loc[1];
-			let d = distance(a.lat, a.lon, b.lat, b.lon);
+			//let a=loc[0];
+			//let b=loc[1];
+			//let d = distance(a.lat, a.lon, b.lat, b.lon);
+			// TODO: validate distance between all locations globally
+			let count = Self::currency_count();
+			for l1 in loc.iter() {
+				//test within this currencies' set
+				for l2 in loc.iter() {
+					if l2 == l1 { continue }
+					ensure!(Self::distance(&l1, &l2) >= MIN_DISTANCE_M, "minimum distance violated within supplied locations");
+				}
+				// test against all other currencies
+				for c in 1..=count {
+					let other = Self::currency_identifiers(c);
+					for l2 in Self::locations(other) {
+						if Self::distance(&l1, &l2) < MIN_DISTANCE_M {
+							print_hex(&other.encode());
+							return Err("minimum distance violated towards other registered currency");
+						}
+					}
+				}
+			}
+		
+			let new_count = count.checked_add(1).
+            	ok_or("[EncointerCurrencies]: Overflow adding new currency to registry")?;
+			<CurrencyIdentifiers>::insert(&new_count, &cid);
+			<Locations>::insert(&cid, &loc);
+			<Bootstrappers<T>>::insert(&cid, &bootstrappers);
+			<CurrencyCount>::put(new_count);	
+			Self::deposit_event(RawEvent::CurrencyRegistered(sender, cid));		
 			Ok(())
 		}
 	}
@@ -84,17 +111,14 @@ decl_module! {
 
 decl_event!(
 	pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
-		CurrencyRegistered(CurrencyIdentifier),
+		CurrencyRegistered(AccountId, CurrencyIdentifier),
 	}
 );
 
 impl<T: Trait> Module<T> {
-	fn validate_locations(loc: Vec<Location>) -> Result {
-		// ensure we're not near the poles
-		for l in loc.iter() {
-			//ensure!(loc.lat > MAX_LAT, "too far north");
-		}
-		Ok(())
+	fn distance(from: &Location, to: &Location) -> u32 {
+		// FIXME: replace by fixpoint implementation within runtime.
+		runtime_interfaces::distance(from.lat, from.lon, to.lat, to.lon)
 	}
 }
 

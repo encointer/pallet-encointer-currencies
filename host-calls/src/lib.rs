@@ -30,7 +30,7 @@ pub trait RuntimeInterfaces {
         debug!("calling into host call validate_locations()");
         let a = Point::<f64>::from((a_lat as f64 * 1e-6, a_lon as f64 * 1e-6));
         let b = Point::<f64>::from((b_lat as f64 * 1e-6, b_lon as f64 * 1e-6));
-        let distance = p1.vincenty_distance(&p2).unwrap();
-        distance.rounded() as u32
+        let distance = a.vincenty_distance(&b).unwrap();
+        distance.round() as u32
     }
 }
