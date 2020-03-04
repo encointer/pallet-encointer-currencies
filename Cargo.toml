@@ -6,10 +6,13 @@ edition = "2018"
 
 [workspace]
 members = [
-    "host_calls",
+    "host-calls",
 ]
 
-[dependencies]
+[dependencies.host-calls]
+default-features = false
+package="encointer-currencies-host-calls"
+path = "host-calls"
 
 [dependencies.rstd]
 default-features = false
@@ -27,6 +30,12 @@ rev = "3bf9540e72df5ecb3955845764dfee7dcdbb26b5"
 default-features = false
 git = "https://github.com/paritytech/substrate"
 package = "sr-primitives"
+rev = "3bf9540e72df5ecb3955845764dfee7dcdbb26b5"
+
+[dependencies.primitives]
+default-features = false
+git = "https://github.com/paritytech/substrate"
+package = "substrate-primitives"
 rev = "3bf9540e72df5ecb3955845764dfee7dcdbb26b5"
 
 [dependencies.balances]
@@ -62,12 +71,6 @@ version = "1.0.101"
 default-features = false
 git = "https://github.com/paritytech/substrate"
 package = "node-primitives"
-rev = "3bf9540e72df5ecb3955845764dfee7dcdbb26b5"
-
-[dev-dependencies.primitives]
-default-features = false
-git = "https://github.com/paritytech/substrate"
-package = "substrate-primitives"
 rev = "3bf9540e72df5ecb3955845764dfee7dcdbb26b5"
 
 [dev-dependencies.externalities]

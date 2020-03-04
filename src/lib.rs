@@ -21,6 +21,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use host_calls::runtime_interfaces::distance;
 use support::{decl_module, decl_storage, decl_event, ensure,
 	storage::{StorageDoubleMap, StorageMap, StorageValue},
 	traits::Currency,
@@ -32,7 +33,7 @@ use rstd::prelude::*;
 use sr_primitives::traits::{Verify, Member, CheckedAdd, IdentifyAccount};
 use sr_primitives::MultiSignature;
 use runtime_io::misc::print_utf8;
-
+use primitives::H256; 
 use codec::{Codec, Encode, Decode};
 
 pub trait Trait: system::Trait {
@@ -43,14 +44,14 @@ pub type CurrencyIndexType = u32;
 pub type LocationIndexType = u32;
 
 // L
-const MAX_LAT: i32 = 
-//! Location in lat/lon. Translate float to u32 by round(value*10^6) giving a precision of at least 11cm
+const MAX_LAT: i32 = 89_000_000;
+// Location in lat/lon. Translate float to u32 by round(value*10^6) giving a precision of at least 11cm
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Location {
 	pub lat: i32,
 	pub lon: u32,
 }
-pub type CurrencyIdentifier = Hash;
+pub type CurrencyIdentifier = H256;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as EncointerCeremonies {
@@ -71,9 +72,11 @@ decl_module! {
 		// FIXME: this function has complexity O(n^2)! 
 		// where n is the number of all locations of all currencies 
 		// this should be run off-chain in substraTEE-worker later
-		pub fn new_currency(origin, cid: CurrencyIdentifier, loc: Vec<Location>, bootstrappers: Vec<AccountId>) -> Result {
+		pub fn new_currency(origin, cid: CurrencyIdentifier, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> Result {
 			let sender = ensure_signed(origin)?;
-			validate_locations(loc)?;
+			let a=loc[0];
+			let b=loc[1];
+			let d = distance(a.lat, a.lon, b.lat, b.lon);
 			Ok(())
 		}
 	}
@@ -89,7 +92,7 @@ impl<T: Trait> Module<T> {
 	fn validate_locations(loc: Vec<Location>) -> Result {
 		// ensure we're not near the poles
 		for l in loc.iter() {
-			ensure!(loc.lat > MAX_LAT, "too far north"}
+			//ensure!(loc.lat > MAX_LAT, "too far north");
 		}
 		Ok(())
 	}

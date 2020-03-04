@@ -12,16 +12,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 
-/*
-#[cfg(feature = "std")]
-mod location_verification;
-
-#[cfg(feature = "std")]
-use location_verification::distance;
-*/
-
-
-use codec::{Decode, Encode};
 use runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
@@ -32,11 +22,9 @@ use geo::Point;
 #[cfg(feature = "std")]
 use geo::prelude::*;
 
-
 #[runtime_interface]
 pub trait RuntimeInterfaces {
-    // Only types that implement the RIType (Runtime Interface Type) trait can be returned
-
+    // Only types that implement the RIType (Runtime Interface Type) trait can be returned or supplied as arguments
     // return distance in meters rounded to 1m
     fn distance(a_lat: i32, a_lon: u32, b_lat: i32, b_lon: u32) -> u32 {
         debug!("calling into host call validate_locations()");
