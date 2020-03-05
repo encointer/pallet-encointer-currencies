@@ -134,8 +134,11 @@ fn new_currency_works() {
         let loc = vec!(a,b);
         let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
         let cid = CurrencyIdentifier::default();
-
-        assert_ok!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc, bs));
+        assert_ok!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc.clone(), bs.clone()));
+        let cids = EncointerCurrencies::currency_identifiers();
+        assert!(cids.contains(&cid));        
+        assert_eq!(EncointerCurrencies::locations(&cid), loc);
+        assert_eq!(EncointerCurrencies::bootstrappers(&cid), bs);
     });
 }
 

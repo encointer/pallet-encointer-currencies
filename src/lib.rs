@@ -57,9 +57,7 @@ decl_storage! {
 	trait Store for Module<T: Trait> as EncointerCeremonies {
 		Locations get(locations): map CurrencyIdentifier => Vec<Location>;
 		Bootstrappers get(bootstrappers): map CurrencyIdentifier => Vec<T::AccountId>;
-		// caution: index starts with 1, not 0! (because null and 0 is the same for state storage)
-		CurrencyIdentifiers get(currency_identifiers): map CurrencyIndexType => CurrencyIdentifier;
-		CurrencyCount get(currency_count): CurrencyIndexType;
+		CurrencyIdentifiers get(currency_identifiers): Vec<CurrencyIdentifier>;
 		// TODO: replace this with on-chain governance
 		CurrencyMaster get(currency_master) config(): T::AccountId;
 	}
@@ -78,7 +76,7 @@ decl_module! {
 			//let b=loc[1];
 			//let d = distance(a.lat, a.lon, b.lat, b.lon);
 			// TODO: validate distance between all locations globally
-			let count = Self::currency_count();
+			let cids = Self::currency_identifiers();
 			for l1 in loc.iter() {
 				//test within this currencies' set
 				for l2 in loc.iter() {
@@ -86,8 +84,7 @@ decl_module! {
 					ensure!(Self::distance(&l1, &l2) >= MIN_DISTANCE_M, "minimum distance violated within supplied locations");
 				}
 				// test against all other currencies
-				for c in 1..=count {
-					let other = Self::currency_identifiers(c);
+				for other in cids.iter() {
 					for l2 in Self::locations(other) {
 						if Self::distance(&l1, &l2) < MIN_DISTANCE_M {
 							print_hex(&other.encode());
@@ -97,12 +94,9 @@ decl_module! {
 				}
 			}
 		
-			let new_count = count.checked_add(1).
-            	ok_or("[EncointerCurrencies]: Overflow adding new currency to registry")?;
-			<CurrencyIdentifiers>::insert(&new_count, &cid);
+			<CurrencyIdentifiers>::mutate(|v| v.push(cid));
 			<Locations>::insert(&cid, &loc);
 			<Bootstrappers<T>>::insert(&cid, &bootstrappers);
-			<CurrencyCount>::put(new_count);	
 			Self::deposit_event(RawEvent::CurrencyRegistered(sender, cid));		
 			Ok(())
 		}
