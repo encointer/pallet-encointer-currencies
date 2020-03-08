@@ -23,18 +23,15 @@
 
 use host_calls::runtime_interfaces;
 use support::{decl_module, decl_storage, decl_event, ensure,
-	storage::{StorageDoubleMap, StorageMap, StorageValue},
-	traits::Currency,
+	storage::{StorageMap, StorageValue},
 	dispatch::Result};
-use system::{ensure_signed, ensure_root};
+use system::ensure_signed;
 
 use rstd::prelude::*;
 
-use sr_primitives::traits::{Verify, Member, CheckedAdd, IdentifyAccount};
-use sr_primitives::MultiSignature;
 use runtime_io::misc::{print_utf8, print_hex};
 use primitives::H256; 
-use codec::{Codec, Encode, Decode};
+use codec::{Encode, Decode};
 
 pub trait Trait: system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -87,6 +84,7 @@ decl_module! {
 				for other in cids.iter() {
 					for l2 in Self::locations(other) {
 						if Self::distance(&l1, &l2) < MIN_DISTANCE_M {
+							print_utf8(b"location distance violation for:");
 							print_hex(&other.encode());
 							return Err("minimum distance violated towards other registered currency");
 						}
