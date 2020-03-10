@@ -26,11 +26,12 @@ use geo::prelude::*;
 pub trait RuntimeInterfaces {
     // Only types that implement the RIType (Runtime Interface Type) trait can be returned or supplied as arguments
     // return distance in meters rounded to 1m
-    fn distance(a_lat: i32, a_lon: u32, b_lat: i32, b_lon: u32) -> u32 {
+    fn distance(a_lat: i32, a_lon: i32, b_lat: i32, b_lon: i32) -> u32 {
         debug!("calling into host call validate_locations()");
-        let a = Point::<f64>::from((a_lat as f64 * 1e-6, a_lon as f64 * 1e-6));
-        let b = Point::<f64>::from((b_lat as f64 * 1e-6, b_lon as f64 * 1e-6));
+        let a = Point::<f64>::from((a_lon as f64 * 1e-6, a_lat as f64 * 1e-6));
+        let b = Point::<f64>::from((b_lon as f64 * 1e-6, b_lat as f64 * 1e-6));
         let distance = a.vincenty_distance(&b).unwrap();
+        println!("distance between {:?} and {:?} is {}", a, b, distance);
         distance.round() as u32
     }
 }

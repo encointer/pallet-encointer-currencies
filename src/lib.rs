@@ -44,11 +44,15 @@ pub type LocationIndexType = u32;
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Location {
 	pub lat: i32,
-	pub lon: u32,
+	pub lon: i32,
 }
 pub type CurrencyIdentifier = H256;
 
 const MIN_DISTANCE_M : u32 = 100; // meetup locations must be that many meters apart
+const DATELINE_DISTANCE_M : u32 = 1_000_000; // meetups may not be closer to dateline (or poles) than this
+const NORTH_POLE: Location = Location { lon: 0, lat: 90_000_000 };
+const SOUTH_POLE: Location = Location { lon: 0, lat: -90_000_000 };
+const DATELINE_LON: i32 = 180_000_000;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as EncointerCeremonies {
@@ -63,16 +67,11 @@ decl_storage! {
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		fn deposit_event() = default;
-
 		// FIXME: this function has complexity O(n^2)! 
 		// where n is the number of all locations of all currencies 
 		// this should be run off-chain in substraTEE-worker later
 		pub fn new_currency(origin, cid: CurrencyIdentifier, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> Result {
 			let sender = ensure_signed(origin)?;
-			//let a=loc[0];
-			//let b=loc[1];
-			//let d = distance(a.lat, a.lon, b.lat, b.lon);
-			// TODO: validate distance between all locations globally
 			let cids = Self::currency_identifiers();
 			for l1 in loc.iter() {
 				//test within this currencies' set
@@ -80,7 +79,21 @@ decl_module! {
 					if l2 == l1 { continue }
 					ensure!(Self::distance(&l1, &l2) >= MIN_DISTANCE_M, "minimum distance violated within supplied locations");
 				}
-				// test against all other currencies
+				// prohibit proximity to poles
+				if Self::distance(&l1, &NORTH_POLE) < DATELINE_DISTANCE_M 
+					|| Self::distance(&l1, &SOUTH_POLE) < DATELINE_DISTANCE_M {
+					print_utf8(b"location distance violation for:");
+					print_hex(&l1.encode());
+					return Err("minimum distance violated towards pole");
+				}
+				// prohibit proximity to dateline
+				let dateline_proxy = Location { lat: l1.lat, lon: DATELINE_LON };
+				if Self::distance(&l1, &dateline_proxy) < DATELINE_DISTANCE_M {
+					print_utf8(b"location distance violation for:");
+					print_hex(&l1.encode());
+					return Err("minimum distance violated towards dateline");
+				}
+				// test against all other currencies globally
 				for other in cids.iter() {
 					for l2 in Self::locations(other) {
 						if Self::distance(&l1, &l2) < MIN_DISTANCE_M {
