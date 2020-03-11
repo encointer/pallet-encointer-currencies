@@ -30,7 +30,7 @@ use system::ensure_signed;
 use rstd::prelude::*;
 
 use runtime_io::misc::{print_utf8, print_hex};
-use primitives::H256; 
+use primitives::{H256, hashing::blake2_256}; 
 use codec::{Encode, Decode};
 
 pub trait Trait: system::Trait {
@@ -72,7 +72,7 @@ decl_module! {
 		// FIXME: this function has complexity O(n^2)! 
 		// where n is the number of all locations of all currencies 
 		// this should be run off-chain in substraTEE-worker later
-		pub fn new_currency(origin, cid: CurrencyIdentifier, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> Result {
+		pub fn new_currency(origin, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> Result {
 			let sender = ensure_signed(origin)?;
 			let cids = Self::currency_identifiers();
 			for l1 in loc.iter() {
@@ -107,7 +107,7 @@ decl_module! {
 					}
 				}
 			}
-		
+			let cid = CurrencyIdentifier::from(blake2_256(&(loc.clone(), bootstrappers.clone()).encode()));
 			<CurrencyIdentifiers>::mutate(|v| v.push(cid));
 			<Locations>::insert(&cid, &loc);
 			<Bootstrappers<T>>::insert(&cid, &bootstrappers);

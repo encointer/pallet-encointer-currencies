@@ -20,7 +20,7 @@ use sr_primitives::traits::{Verify, Member, CheckedAdd, IdentifyAccount};
 use sr_primitives::{Perbill, traits::{IdentityLookup, BlakeTwo256}, testing::Header};
 use std::{collections::HashSet, cell::RefCell};
 use externalities::set_and_run_with_externalities;
-use primitives::{H256, Blake2Hasher, Pair, Public, sr25519};
+use primitives::{H256, Blake2Hasher, Pair, Public, sr25519, hashing::blake2_256};
 use support::traits::{Currency, Get, FindAuthor, LockIdentifier};
 use sr_primitives::weights::Weight;
 use node_primitives::{AccountId, Signature};
@@ -157,8 +157,8 @@ fn new_currency_works() {
         let b = Location {lat: 1_000_000, lon: 2_000_000 };
         let loc = vec!(a,b);
         let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
-        let cid = CurrencyIdentifier::default();
-        assert_ok!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc.clone(), bs.clone()));
+        assert_ok!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc.clone(), bs.clone()));
+        let cid = CurrencyIdentifier::from(blake2_256(&(loc.clone(), bs.clone()).encode()));
         let cids = EncointerCurrencies::currency_identifiers();
         assert!(cids.contains(&cid));        
         assert_eq!(EncointerCurrencies::locations(&cid), loc);
@@ -181,7 +181,7 @@ fn new_currency_with_too_close_inner_locations_fails() {
         let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
         let cid = CurrencyIdentifier::default();
 
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc, bs)
+        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs)
             .is_err());
     });
 }
@@ -197,14 +197,13 @@ fn new_currency_too_close_to_existing_currency_fails() {
         let b = Location {lat: 1_000_000, lon: 2_000_000 };
         let loc = vec!(a,b);
         let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
-        let cid = CurrencyIdentifier::default();
-        assert_ok!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc.clone(), bs.clone()));
+        assert_ok!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc.clone(), bs.clone()));
         
         // second currency
         let a = Location {lat: 1_000_001, lon: 1_000_001 };
         let b = Location {lat: 1_000_001, lon: 2_000_001 };
         let loc = vec!(a,b);
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc.clone(), bs.clone())
+        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc.clone(), bs.clone())
             .is_err());
     });
 }
@@ -223,13 +222,13 @@ fn new_currency_with_near_pole_locations_fails() {
         let a = Location {lat: 89_000_000, lon: 60_000_000 };
         let b = Location {lat: 89_000_000, lon: -60_000_000 };
         let loc = vec!(a,b);
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc, bs.clone())
+        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs.clone())
             .is_err());
 
         let a = Location {lat: -89_000_000, lon: 60_000_000 };
         let b = Location {lat: -89_000_000, lon: -60_000_000 };
         let loc = vec!(a,b);
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc, bs)
+        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs)
             .is_err());
     
     });
@@ -248,7 +247,7 @@ fn new_currency_near_dateline_fails() {
         let a = Location {lat: 10_000_000, lon: 179_000_000 };
         let b = Location {lat: 11_000_000, lon: 179_000_000 };
         let loc = vec!(a,b);
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), cid, loc, bs.clone())
+        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs.clone())
             .is_err());
     });
 }
