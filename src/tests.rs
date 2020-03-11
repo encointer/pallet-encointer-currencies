@@ -123,6 +123,30 @@ fn get_accountid(pair: &sr25519::Pair) -> AccountId {
 }
 
 #[test]
+fn solar_trip_time_works() {
+    // one degree equator
+    let a = Location {lat: 0_000_000, lon: 0_000_000 };
+    let b = Location {lat: 0_000_000, lon: 1_000_000 }; // one degree lat is 111km at the equator
+    assert_eq!(EncointerCurrencies::solar_trip_time(&a,&b), 1099);
+    assert_eq!(EncointerCurrencies::solar_trip_time(&b,&a), 1099);
+    // Reykjavik one degree lon: expect to yield much shorter times than at the equator 
+    let a = Location {lat: 64_135_480, lon: -21_895_410 }; // this is reykjavik
+    let b = Location {lat: 64_135_480, lon: -20_895_410 };
+    assert_eq!(EncointerCurrencies::solar_trip_time(&a,&b), 344);
+    // Reykjavik 111km: expect to yield much shorter times than at the equator because
+    // next time zone is much closer in meter overland. 
+    // -> require locations to be further apart (in east-west) at this latitude
+    let a = Location {lat: 64_135_480, lon: 0 }; // this is at reykjavik lat
+    let b = Location {lat: 64_135_480, lon: 2_290_000 }; // 2.29° is 111km
+    assert_eq!(EncointerCurrencies::solar_trip_time(&a,&b), 858);
+    // maximal 
+    let a = Location {lat: 0_000_000, lon: 0_000_000 };
+    let b = Location {lat: 0_000_000, lon: 180_000_000 };
+    assert_eq!(EncointerCurrencies::solar_trip_time(&a,&b), 197945); 
+    assert_eq!(EncointerCurrencies::solar_trip_time(&b,&a), 197945);
+}
+
+#[test]
 fn new_currency_works() {
     ExtBuilder::build().execute_with(|| {
         let master = AccountId::from(AccountKeyring::Alice);

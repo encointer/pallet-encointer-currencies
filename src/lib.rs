@@ -48,7 +48,9 @@ pub struct Location {
 }
 pub type CurrencyIdentifier = H256;
 
-const MIN_DISTANCE_M : u32 = 100; // meetup locations must be that many meters apart
+const MAX_SPEED_MPS : u32 = 83; // [m/s] max speed over ground of adversary
+const MIN_SOLAR_TRIP_TIME_S : i32 = 1; // [s] minimum adversary trip time between two locations measured in local (solar) time.
+
 const DATELINE_DISTANCE_M : u32 = 1_000_000; // meetups may not be closer to dateline (or poles) than this
 const NORTH_POLE: Location = Location { lon: 0, lat: 90_000_000 };
 const SOUTH_POLE: Location = Location { lon: 0, lat: -90_000_000 };
@@ -74,10 +76,11 @@ decl_module! {
 			let sender = ensure_signed(origin)?;
 			let cids = Self::currency_identifiers();
 			for l1 in loc.iter() {
+				ensure!(Self::is_valid_geolocation(&l1), "invalid geolocation specified");
 				//test within this currencies' set
 				for l2 in loc.iter() {
 					if l2 == l1 { continue }
-					ensure!(Self::distance(&l1, &l2) >= MIN_DISTANCE_M, "minimum distance violated within supplied locations");
+					ensure!(Self::solar_trip_time(&l1, &l2) >= MIN_SOLAR_TRIP_TIME_S, "minimum solar trip time violated within supplied locations");
 				}
 				// prohibit proximity to poles
 				if Self::distance(&l1, &NORTH_POLE) < DATELINE_DISTANCE_M 
@@ -96,7 +99,7 @@ decl_module! {
 				// test against all other currencies globally
 				for other in cids.iter() {
 					for l2 in Self::locations(other) {
-						if Self::distance(&l1, &l2) < MIN_DISTANCE_M {
+						if Self::solar_trip_time(&l1, &l2) < MIN_SOLAR_TRIP_TIME_S {
 							print_utf8(b"location distance violation for:");
 							print_hex(&other.encode());
 							return Err("minimum distance violated towards other registered currency");
@@ -124,6 +127,25 @@ impl<T: Trait> Module<T> {
 	fn distance(from: &Location, to: &Location) -> u32 {
 		// FIXME: replace by fixpoint implementation within runtime.
 		runtime_interfaces::distance(from.lat, from.lon, to.lat, to.lon)
+	}
+
+	fn solar_trip_time(from: &Location, to: &Location) -> i32 {
+		// FIXME: replace by fixpoint implementation within runtime.
+		let d = runtime_interfaces::distance(from.lat, from.lon, to.lat, to.lon);
+		// FIXME: this will not panic, but make sure!
+		let dt = from.lon.checked_sub(to.lon).unwrap()
+			.checked_div(1_000_000).unwrap()
+			.checked_mul(240).unwrap(); // 24h * 3600s / 360° = 240s/°
+		let tflight = d.checked_div(MAX_SPEED_MPS).unwrap();
+		tflight as i32 - (dt.abs() as u32) as i32
+	}
+
+	fn is_valid_geolocation(loc: &Location) -> bool {
+		if loc.lat > NORTH_POLE.lat { return false }
+		if loc.lat < SOUTH_POLE.lat { return false }
+		if loc.lon > DATELINE_LON { return false }
+		if loc.lon < -DATELINE_LON { return false }
+		true
 	}
 }
 
