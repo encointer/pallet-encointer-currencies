@@ -29,8 +29,10 @@ use system::ensure_signed;
 
 use rstd::prelude::*;
 
-use runtime_io::misc::{print_utf8, print_hex};
-use primitives::{H256, hashing::blake2_256}; 
+use runtime_io::{
+	misc::{print_utf8, print_hex},
+	hashing::blake2_256};
+use primitives::H256; 
 use codec::{Encode, Decode};
 
 pub trait Trait: system::Trait {
