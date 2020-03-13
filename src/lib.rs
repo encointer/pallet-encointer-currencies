@@ -59,7 +59,7 @@ const SOUTH_POLE: Location = Location { lon: 0, lat: -90_000_000 };
 const DATELINE_LON: i32 = 180_000_000;
 
 decl_storage! {
-	trait Store for Module<T: Trait> as EncointerCeremonies {
+	trait Store for Module<T: Trait> as EncointerCurrencies {
 		Locations get(locations): map CurrencyIdentifier => Vec<Location>;
 		Bootstrappers get(bootstrappers): map CurrencyIdentifier => Vec<T::AccountId>;
 		CurrencyIdentifiers get(currency_identifiers): Vec<CurrencyIdentifier>;
@@ -76,7 +76,10 @@ decl_module! {
 		// this should be run off-chain in substraTEE-worker later
 		pub fn new_currency(origin, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> Result {
 			let sender = ensure_signed(origin)?;
+			let cid = CurrencyIdentifier::from(blake2_256(&(loc.clone(), bootstrappers.clone()).encode()));
 			let cids = Self::currency_identifiers();
+			ensure!(!cids.contains(&cid), "currency already registered");
+			
 			for l1 in loc.iter() {
 				ensure!(Self::is_valid_geolocation(&l1), "invalid geolocation specified");
 				//test within this currencies' set
@@ -109,7 +112,7 @@ decl_module! {
 					}
 				}
 			}
-			let cid = CurrencyIdentifier::from(blake2_256(&(loc.clone(), bootstrappers.clone()).encode()));
+			
 			<CurrencyIdentifiers>::mutate(|v| v.push(cid));
 			<Locations>::insert(&cid, &loc);
 			<Bootstrappers<T>>::insert(&cid, &bootstrappers);
