@@ -18,9 +18,9 @@ use runtime_interface::runtime_interface;
 use log::*;
 
 #[cfg(feature = "std")]
-use geo::Point;
-#[cfg(feature = "std")]
 use geo::prelude::*;
+#[cfg(feature = "std")]
+use geo::Point;
 
 #[runtime_interface]
 pub trait RuntimeInterfaces {

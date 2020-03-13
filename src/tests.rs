@@ -12,19 +12,25 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 
-
 use super::*;
 use crate::{GenesisConfig, Module, Trait};
-use support::{impl_outer_event, impl_outer_origin, parameter_types, assert_ok};
-use sr_primitives::traits::{Verify, Member, CheckedAdd, IdentifyAccount};
-use sr_primitives::{Perbill, traits::{IdentityLookup, BlakeTwo256}, testing::Header};
-use std::{collections::HashSet, cell::RefCell};
 use externalities::set_and_run_with_externalities;
-use primitives::{H256, Blake2Hasher, Pair, Public, sr25519, hashing::blake2_256};
-use support::traits::{Currency, Get, FindAuthor, LockIdentifier};
-use sr_primitives::weights::Weight;
 use node_primitives::{AccountId, Signature};
+use primitives::{hashing::blake2_256, sr25519, Blake2Hasher, Pair, Public, H256};
+use sr_primitives::traits::{CheckedAdd, IdentifyAccount, Member, Verify};
+use sr_primitives::weights::Weight;
+use sr_primitives::{
+    testing::Header,
+    traits::{BlakeTwo256, IdentityLookup},
+    Perbill,
+};
+use std::{cell::RefCell, collections::HashSet};
+use support::traits::{Currency, FindAuthor, Get, LockIdentifier};
+use support::{assert_ok, impl_outer_event, impl_outer_origin, parameter_types};
 use test_client::AccountKeyring;
+
+use fixed::traits::LossyFrom;
+use fixed::types::{I32F32, I9F23, I9F55};
 
 const NONE: u64 = 0;
 const REWARD: Balance = 1000;
@@ -102,19 +108,25 @@ pub struct ExtBuilder;
 
 impl ExtBuilder {
     pub fn build() -> runtime_io::TestExternalities {
-        let mut storage = system::GenesisConfig::default().build_storage::<TestRuntime>().unwrap();
+        let mut storage = system::GenesisConfig::default()
+            .build_storage::<TestRuntime>()
+            .unwrap();
         balances::GenesisConfig::<TestRuntime> {
             balances: vec![],
             vesting: vec![],
-        }.assimilate_storage(&mut storage).unwrap();		
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
         GenesisConfig::<TestRuntime> {
             currency_master: get_accountid(&test_client::AccountKeyring::Alice.pair()),
-        }.assimilate_storage(&mut storage).unwrap();		
+        }
+        .assimilate_storage(&mut storage)
+        .unwrap();
         runtime_io::TestExternalities::from(storage)
     }
 }
 
-impl_outer_origin!{
+impl_outer_origin! {
     pub enum Origin for TestRuntime {}
 }
 
@@ -122,28 +134,100 @@ fn get_accountid(pair: &sr25519::Pair) -> AccountId {
     AccountPublic::from(pair.public()).into_account()
 }
 
+type T = Degree;
+
 #[test]
 fn solar_trip_time_works() {
     // one degree equator
-    let a = Location {lat: 0_000_000, lon: 0_000_000 };
-    let b = Location {lat: 0_000_000, lon: 1_000_000 }; // one degree lat is 111km at the equator
-    assert_eq!(EncointerCurrencies::solar_trip_time(&a,&b), 1099);
-    assert_eq!(EncointerCurrencies::solar_trip_time(&b,&a), 1099);
-    // Reykjavik one degree lon: expect to yield much shorter times than at the equator 
-    let a = Location {lat: 64_135_480, lon: -21_895_410 }; // this is reykjavik
-    let b = Location {lat: 64_135_480, lon: -20_895_410 };
-    assert_eq!(EncointerCurrencies::solar_trip_time(&a,&b), 344);
+    let a = Location {
+        lat: T::from_num(0i32),
+        lon: T::from_num(0i32),
+    };
+    let b = Location {
+        lat: T::from_num(0i32),
+        lon: T::from_num(1i32),
+    }; // one degree lat is 111km at the equator
+    assert_eq!(EncointerCurrencies::solar_trip_time(&a, &b), 1099);
+    assert_eq!(EncointerCurrencies::solar_trip_time(&b, &a), 1099);
+    // Reykjavik one degree lon: expect to yield much shorter times than at the equator
+    let a = Location {
+        lat: T::from_num(64.135480_f64),
+        lon: T::from_num(-21.895410_f64),
+    }; // this is reykjavik
+    let b = Location {
+        lat: T::from_num(64.135_480),
+        lon: T::from_num(-20.895410),
+    };
+    assert_eq!(EncointerCurrencies::solar_trip_time(&a, &b), 344);
+
     // Reykjavik 111km: expect to yield much shorter times than at the equator because
-    // next time zone is much closer in meter overland. 
+    // next time zone is much closer in meter overland.
     // -> require locations to be further apart (in east-west) at this latitude
-    let a = Location {lat: 64_135_480, lon: 0 }; // this is at reykjavik lat
-    let b = Location {lat: 64_135_480, lon: 2_290_000 }; // 2.29° is 111km
-    assert_eq!(EncointerCurrencies::solar_trip_time(&a,&b), 858);
-    // maximal 
-    let a = Location {lat: 0_000_000, lon: 0_000_000 };
-    let b = Location {lat: 0_000_000, lon: 180_000_000 };
-    assert_eq!(EncointerCurrencies::solar_trip_time(&a,&b), 197945); 
-    assert_eq!(EncointerCurrencies::solar_trip_time(&b,&a), 197945);
+    let a = Location {
+        lat: T::from_num(64.135480_f64),
+        lon: T::from_num(0_f64),
+    }; // this is at reykjavik lat
+    let b = Location {
+        lat: T::from_num(64.135480_f64),
+        lon: T::from_num(2.290000_f64),
+    }; // 2.29° is 111km
+    assert_eq!(EncointerCurrencies::solar_trip_time(&a, &b), 789);
+    // maximal
+    let a = Location {
+        lat: T::from_num(0i32),
+        lon: T::from_num(0i32),
+    };
+    let b = Location {
+        lat: T::from_num(0i32),
+        lon: T::from_num(180i32),
+    };
+    assert_eq!(EncointerCurrencies::solar_trip_time(&a, &b), 110318);
+    assert_eq!(EncointerCurrencies::solar_trip_time(&b, &a), 110318);
+}
+
+#[test]
+fn haversine_distance_works() {
+    ExtBuilder::build().execute_with(|| {
+        // compare in [km] for human readability
+
+        // one degree lon at equator
+        let a = Location {
+            lat: T::from_num(0),
+            lon: T::from_num(0),
+        };
+        let b = Location {
+            lat: T::from_num(0),
+            lon: T::from_num(1),
+        };
+        assert_abs_diff_eq!(
+            f64::from(EncointerCurrencies::haversine_distance(&a, &b) as i32) * 0.001,
+            111111.0 * 0.001,
+            epsilon = 0.1
+        );
+
+        // half equator
+        let a = Location {
+            lat: T::from_num(0),
+            lon: T::from_num(0),
+        };
+        let b = Location {
+            lat: T::from_num(0),
+            lon: T::from_num(180),
+        };
+        assert_abs_diff_eq!(
+            f64::from(EncointerCurrencies::haversine_distance(&a, &b) as i32) * 0.001,
+            12742.0,
+            epsilon = 0.1
+        );
+
+        // pole to pole
+        assert_abs_diff_eq!(
+            f64::from(EncointerCurrencies::haversine_distance(&NORTH_POLE, &SOUTH_POLE) as i32)
+                * 0.001,
+            12742.0,
+            epsilon = 0.1
+        );
+    });
 }
 
 #[test]
@@ -153,19 +237,32 @@ fn new_currency_works() {
         let alice = AccountId::from(AccountKeyring::Alice);
         let bob = AccountId::from(AccountKeyring::Bob);
         let charlie = AccountId::from(AccountKeyring::Charlie);
-        let a = Location {lat: 1_000_000, lon: 1_000_000 };
-        let b = Location {lat: 1_000_000, lon: 2_000_000 };
-        let loc = vec!(a,b);
-        let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
-        assert_ok!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc.clone(), bs.clone()));
+        let a = Location {
+            lat: T::from_num(1i32),
+            lon: T::from_num(1i32),
+        };
+        let b = Location {
+            lat: T::from_num(1i32),
+            lon: T::from_num(2i32),
+        };
+        assert!(EncointerCurrencies::is_valid_geolocation(&a));
+        assert!(EncointerCurrencies::is_valid_geolocation(&b));
+        println!("testing Location {:?} and {:?}", a, b);
+        println!("north pole at {:?}", NORTH_POLE);
+        let loc = vec![a, b];
+        let bs = vec![alice.clone(), bob.clone(), charlie.clone()];
+        assert_ok!(EncointerCurrencies::new_currency(
+            Origin::signed(alice.clone()),
+            loc.clone(),
+            bs.clone()
+        ));
         let cid = CurrencyIdentifier::from(blake2_256(&(loc.clone(), bs.clone()).encode()));
         let cids = EncointerCurrencies::currency_identifiers();
-        assert!(cids.contains(&cid));        
+        assert!(cids.contains(&cid));
         assert_eq!(EncointerCurrencies::locations(&cid), loc);
         assert_eq!(EncointerCurrencies::bootstrappers(&cid), bs);
     });
 }
-
 
 #[test]
 fn new_currency_with_too_close_inner_locations_fails() {
@@ -174,15 +271,20 @@ fn new_currency_with_too_close_inner_locations_fails() {
         let alice = AccountId::from(AccountKeyring::Alice);
         let bob = AccountId::from(AccountKeyring::Bob);
         let charlie = AccountId::from(AccountKeyring::Charlie);
-        let a = Location {lat: 1_000_000, lon: 1_000_000 };
-        let b = Location {lat: 1_000_000, lon: 1_000_001 };
+        let a = Location {
+            lat: T::from_num(1i32),
+            lon: T::from_num(1i32),
+        };
+        let b = Location {
+            lat: T::from_num(1i32),
+            lon: T::from_num(1.000001_f64),
+        };
         // a and b roughly 11cm apart
-        let loc = vec!(a,b);
-        let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
+        let loc = vec![a, b];
+        let bs = vec![alice.clone(), bob.clone(), charlie.clone()];
         let cid = CurrencyIdentifier::default();
 
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs)
-            .is_err());
+        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs).is_err());
     });
 }
 
@@ -193,21 +295,40 @@ fn new_currency_too_close_to_existing_currency_fails() {
         let alice = AccountId::from(AccountKeyring::Alice);
         let bob = AccountId::from(AccountKeyring::Bob);
         let charlie = AccountId::from(AccountKeyring::Charlie);
-        let a = Location {lat: 1_000_000, lon: 1_000_000 };
-        let b = Location {lat: 1_000_000, lon: 2_000_000 };
-        let loc = vec!(a,b);
-        let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
-        assert_ok!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc.clone(), bs.clone()));
-        
+        let a = Location {
+            lat: T::from_num(1i32),
+            lon: T::from_num(1i32),
+        };
+        let b = Location {
+            lat: T::from_num(1i32),
+            lon: T::from_num(2i32),
+        };
+        let loc = vec![a, b];
+        let bs = vec![alice.clone(), bob.clone(), charlie.clone()];
+        assert_ok!(EncointerCurrencies::new_currency(
+            Origin::signed(alice.clone()),
+            loc.clone(),
+            bs.clone()
+        ));
+
         // second currency
-        let a = Location {lat: 1_000_001, lon: 1_000_001 };
-        let b = Location {lat: 1_000_001, lon: 2_000_001 };
-        let loc = vec!(a,b);
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc.clone(), bs.clone())
-            .is_err());
+        let a = Location {
+            lat: T::from_num(1.000001_f64),
+            lon: T::from_num(1.000001_f64),
+        };
+        let b = Location {
+            lat: T::from_num(1.000001_f64),
+            lon: T::from_num(2.000001_f64),
+        };
+        let loc = vec![a, b];
+        assert!(EncointerCurrencies::new_currency(
+            Origin::signed(alice.clone()),
+            loc.clone(),
+            bs.clone()
+        )
+        .is_err());
     });
 }
-
 
 #[test]
 fn new_currency_with_near_pole_locations_fails() {
@@ -216,21 +337,33 @@ fn new_currency_with_near_pole_locations_fails() {
         let alice = AccountId::from(AccountKeyring::Alice);
         let bob = AccountId::from(AccountKeyring::Bob);
         let charlie = AccountId::from(AccountKeyring::Charlie);
-        let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
+        let bs = vec![alice.clone(), bob.clone(), charlie.clone()];
         let cid = CurrencyIdentifier::default();
 
-        let a = Location {lat: 89_000_000, lon: 60_000_000 };
-        let b = Location {lat: 89_000_000, lon: -60_000_000 };
-        let loc = vec!(a,b);
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs.clone())
-            .is_err());
+        let a = Location {
+            lat: T::from_num(89),
+            lon: T::from_num(60),
+        };
+        let b = Location {
+            lat: T::from_num(89),
+            lon: T::from_num(-60),
+        };
+        let loc = vec![a, b];
+        assert!(
+            EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs.clone())
+                .is_err()
+        );
 
-        let a = Location {lat: -89_000_000, lon: 60_000_000 };
-        let b = Location {lat: -89_000_000, lon: -60_000_000 };
-        let loc = vec!(a,b);
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs)
-            .is_err());
-    
+        let a = Location {
+            lat: T::from_num(-89),
+            lon: T::from_num(60),
+        };
+        let b = Location {
+            lat: T::from_num(-89),
+            lon: T::from_num(-60),
+        };
+        let loc = vec![a, b];
+        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs).is_err());
     });
 }
 
@@ -241,14 +374,21 @@ fn new_currency_near_dateline_fails() {
         let alice = AccountId::from(AccountKeyring::Alice);
         let bob = AccountId::from(AccountKeyring::Bob);
         let charlie = AccountId::from(AccountKeyring::Charlie);
-        let bs = vec!(alice.clone(), bob.clone(), charlie.clone());
+        let bs = vec![alice.clone(), bob.clone(), charlie.clone()];
         let cid = CurrencyIdentifier::default();
 
-        let a = Location {lat: 10_000_000, lon: 179_000_000 };
-        let b = Location {lat: 11_000_000, lon: 179_000_000 };
-        let loc = vec!(a,b);
-        assert!(EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs.clone())
-            .is_err());
+        let a = Location {
+            lat: T::from_num(10),
+            lon: T::from_num(179),
+        };
+        let b = Location {
+            lat: T::from_num(11),
+            lon: T::from_num(179),
+        };
+        let loc = vec![a, b];
+        assert!(
+            EncointerCurrencies::new_currency(Origin::signed(alice.clone()), loc, bs.clone())
+                .is_err()
+        );
     });
 }
-
