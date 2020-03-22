@@ -15,11 +15,6 @@ git = "https://github.com/encointer/substrate-fixed"
 package = "substrate-fixed"
 features=["f16"]
 
-[dependencies.host-calls]
-default-features = false
-package="encointer-currencies-host-calls"
-path = "host-calls"
-
 [dependencies.rstd]
 default-features = false
 git = "https://github.com/paritytech/substrate"
@@ -104,7 +99,7 @@ std = [
 	"sr-primitives/std",
 	"support/std",
 	"system/std",
-	"host-calls/std",
+	"fixed/std",
 ]
 
 [patch."https://github.com/encointer/substrate-fixed"]
