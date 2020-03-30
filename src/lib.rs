@@ -33,9 +33,9 @@ use system::ensure_signed;
 use rstd::prelude::*;
 
 use codec::{Decode, Encode};
-use fixed::traits::{LossyFrom, LossyInto};
+pub use fixed::traits::{LossyFrom, LossyInto};
 use fixed::transcendental::{asin, cos, powi, sin, sqrt};
-use fixed::types::{I32F0, I32F32, U0F64};
+use fixed::types::{I32F0, I32F32, U0F64, I64F64};
 use primitives::H256;
 use runtime_io::{
     hashing::blake2_256,
@@ -49,6 +49,7 @@ pub trait Trait: system::Trait {
 pub type CurrencyIndexType = u32;
 pub type LocationIndexType = u32;
 pub type Degree = I32F32;
+pub type Demurrage = I64F64;
 
 // Location in lat/lon. Fixpoint value in degree with 8 decimal bits and 24 fractional bits
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, Default, Debug)]
@@ -57,6 +58,12 @@ pub struct Location {
     pub lon: Degree,
 }
 pub type CurrencyIdentifier = H256;
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, Debug)]
+pub struct CurrencyPropertiesType {
+    pub name_utf8: Vec<u8>,
+    pub demurrage_per_block: Demurrage,
+}
 
 const MAX_SPEED_MPS: i32 = 83; // [m/s] max speed over ground of adversary
 const MIN_SOLAR_TRIP_TIME_S: i32 = 1; // [s] minimum adversary trip time between two locations measured in local (solar) time.
@@ -85,6 +92,7 @@ decl_storage! {
         Locations get(locations): map CurrencyIdentifier => Vec<Location>;
         Bootstrappers get(bootstrappers): map CurrencyIdentifier => Vec<T::AccountId>;
         CurrencyIdentifiers get(currency_identifiers): Vec<CurrencyIdentifier>;
+        CurrencyProperties get(currency_properties): map CurrencyIdentifier => CurrencyPropertiesType;
         // TODO: replace this with on-chain governance
         CurrencyMaster get(currency_master) config(): T::AccountId;
     }
@@ -138,6 +146,12 @@ decl_module! {
             <CurrencyIdentifiers>::mutate(|v| v.push(cid));
             <Locations>::insert(&cid, &loc);
             <Bootstrappers<T>>::insert(&cid, &bootstrappers);
+            <CurrencyProperties>::insert(&cid, 
+                CurrencyPropertiesType {
+                    name_utf8: b"encointer dummy".to_vec(), 
+                    demurrage_per_block: Demurrage::from_bits(0x0000000000000000000001E3F0A8A973_i128)
+                }
+            );
             Self::deposit_event(RawEvent::CurrencyRegistered(sender, cid));
             Ok(())
         }
@@ -171,7 +185,7 @@ impl<T: Trait> Module<T> {
         tflight - dt
     }
 
-    fn is_valid_geolocation(loc: &Location) -> bool {
+    pub fn is_valid_geolocation(loc: &Location) -> bool {
         if loc.lat > NORTH_POLE.lat {
             return false;
         }
@@ -187,7 +201,7 @@ impl<T: Trait> Module<T> {
         true
     }
 
-    fn haversine_distance(a: &Location, b: &Location) -> u32 {
+    pub fn haversine_distance(a: &Location, b: &Location) -> u32 {
         type I = I32F32;
         let two = I::from_num(2);
         let theta1 = I::from(a.lat) * I::lossy_from(RADIANS_PER_DEGREE);
