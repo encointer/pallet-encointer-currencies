@@ -23,8 +23,8 @@
 
 // use host_calls::runtime_interfaces;
 use support::{
-    decl_event, decl_module, decl_storage,
-    dispatch::Result,
+    decl_event, decl_module, decl_storage, decl_error,
+    dispatch::DispatchResult,
     ensure,
     storage::{StorageMap, StorageValue},
 };
@@ -89,12 +89,12 @@ const MEAN_EARTH_RADIUS: I32F0 = I32F0::from_bits(0x006136B8);
 
 decl_storage! {
     trait Store for Module<T: Trait> as EncointerCurrencies {
-        Locations get(locations): map CurrencyIdentifier => Vec<Location>;
-        Bootstrappers get(bootstrappers): map CurrencyIdentifier => Vec<T::AccountId>;
-        CurrencyIdentifiers get(currency_identifiers): Vec<CurrencyIdentifier>;
-        CurrencyProperties get(currency_properties): map CurrencyIdentifier => CurrencyPropertiesType;
+        Locations get(fn locations): map hasher(blake2_128_concat) CurrencyIdentifier => Vec<Location>;
+        Bootstrappers get(fn bootstrappers): map hasher(blake2_128_concat) CurrencyIdentifier => Vec<T::AccountId>;
+        CurrencyIdentifiers get(fn currency_identifiers): Vec<CurrencyIdentifier>;
+        CurrencyProperties get(fn currency_properties): map hasher(blake2_128_concat) CurrencyIdentifier => CurrencyPropertiesType;
         // TODO: replace this with on-chain governance
-        CurrencyMaster get(currency_master) config(): T::AccountId;
+        CurrencyMaster get(fn currency_master) config(): T::AccountId;
     }
 }
 
@@ -104,7 +104,7 @@ decl_module! {
         // FIXME: this function has complexity O(n^2)!
         // where n is the number of all locations of all currencies
         // this should be run off-chain in substraTEE-worker later
-        pub fn new_currency(origin, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> Result {
+        pub fn new_currency(origin, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
             let cid = CurrencyIdentifier::from(blake2_256(&(loc.clone(), bootstrappers.clone()).encode()));
             let cids = Self::currency_identifiers();
@@ -122,14 +122,14 @@ decl_module! {
                     || Self::haversine_distance(&l1, &SOUTH_POLE) < DATELINE_DISTANCE_M {
                     print_utf8(b"location distance violation for:");
                     print_hex(&l1.encode());
-                    return Err("minimum distance violated towards pole");
+                    return Err(<Error<T>>::MinimumDistanceViolationToPole.into());
                 }
                 // prohibit proximity to dateline
                 let dateline_proxy = Location { lat: l1.lat, lon: DATELINE_LON };
                 if Self::haversine_distance(&l1, &dateline_proxy) < DATELINE_DISTANCE_M {
                     print_utf8(b"location distance violation for:");
                     print_hex(&l1.encode());
-                    return Err("minimum distance violated towards dateline");
+                    return Err(<Error<T>>::MinimumDistanceViolationToDateLine.into());
                 }
                 // test against all other currencies globally
                 for other in cids.iter() {
@@ -137,7 +137,7 @@ decl_module! {
                         if Self::solar_trip_time(&l1, &l2) < MIN_SOLAR_TRIP_TIME_S {
                             print_utf8(b"location distance violation for:");
                             print_hex(&other.encode());
-                            return Err("minimum distance violated towards other registered currency");
+                            return Err(<Error<T>>::MinimumDistanceViolationToOtherCurrency.into());
                         }
                     }
                 }
@@ -153,6 +153,8 @@ decl_module! {
                 }
             );
             Self::deposit_event(RawEvent::CurrencyRegistered(sender, cid));
+            print_utf8(b"registered currency wth cid:");
+            print_hex(&cid.encode());
             Ok(())
         }
     }
@@ -166,6 +168,17 @@ decl_event!(
         CurrencyRegistered(AccountId, CurrencyIdentifier),
     }
 );
+
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// minimum distance violated towards pole
+        MinimumDistanceViolationToPole,
+        /// minimum distance violated towards dateline
+        MinimumDistanceViolationToDateLine,
+        /// minimum distance violated towards other currency's location
+		MinimumDistanceViolationToOtherCurrency,
+	}
+}
 
 impl<T: Trait> Module<T> {
     fn solar_trip_time(from: &Location, to: &Location) -> i32 {

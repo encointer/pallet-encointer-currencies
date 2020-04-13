@@ -15,11 +15,9 @@
 use super::*;
 use crate::{GenesisConfig, Module, Trait};
 use externalities::set_and_run_with_externalities;
-use node_primitives::{AccountId, Signature};
 use primitives::{hashing::blake2_256, sr25519, Blake2Hasher, Pair, Public, H256};
-use sr_primitives::traits::{CheckedAdd, IdentifyAccount, Member, Verify};
-use sr_primitives::weights::Weight;
-use sr_primitives::{
+use sp_runtime::traits::{CheckedAdd, IdentifyAccount, Member, Verify};
+use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
     Perbill,
@@ -27,7 +25,7 @@ use sr_primitives::{
 use std::{cell::RefCell, collections::HashSet};
 use support::traits::{Currency, FindAuthor, Get, LockIdentifier};
 use support::{assert_ok, impl_outer_event, impl_outer_origin, parameter_types};
-use test_client::AccountKeyring;
+use sp_keyring::AccountKeyring;
 
 use fixed::traits::LossyFrom;
 use fixed::types::{I32F32, I9F23, I9F55};
@@ -35,8 +33,14 @@ use fixed::types::{I32F32, I9F23, I9F55};
 const NONE: u64 = 0;
 const REWARD: Balance = 1000;
 
+/// The signature type used by accounts/transactions.
+pub type Signature = sr25519::Signature;
+/// An identifier for an account on this system.
+pub type AccountId = <Signature as Verify>::Signer;
+
+
 thread_local! {
-    static EXISTENTIAL_DEPOSIT: RefCell<u64> = RefCell::new(0);
+    static EXISTENTIAL_DEPOSIT: RefCell<u64> = RefCell::new(1);
 }
 pub type BlockNumber = u64;
 pub type Balance = u64;
@@ -79,6 +83,10 @@ impl system::Trait for TestRuntime {
     type MaximumBlockLength = MaximumBlockLength;
     type AvailableBlockRatio = AvailableBlockRatio;
     type Version = ();
+	type ModuleToIndex = ();
+	type AccountData = balances::AccountData<u64>;
+	type OnNewAccount = ();
+	type OnKilledAccount = ();       
 }
 
 pub type System = system::Module<TestRuntime>;
@@ -91,14 +99,10 @@ parameter_types! {
 }
 impl balances::Trait for TestRuntime {
     type Balance = Balance;
-    type OnFreeBalanceZero = ();
-    type OnNewAccount = ();
     type Event = ();
-    type TransferPayment = ();
     type DustRemoval = ();
     type ExistentialDeposit = ExistentialDeposit;
-    type TransferFee = TransferFee;
-    type CreationFee = CreationFee;
+    type AccountStore = System;
 }
 pub type Balances = balances::Module<TestRuntime>;
 
@@ -113,12 +117,11 @@ impl ExtBuilder {
             .unwrap();
         balances::GenesisConfig::<TestRuntime> {
             balances: vec![],
-            vesting: vec![],
         }
         .assimilate_storage(&mut storage)
         .unwrap();
         GenesisConfig::<TestRuntime> {
-            currency_master: get_accountid(&test_client::AccountKeyring::Alice.pair()),
+            currency_master: get_accountid(&AccountKeyring::Alice.pair()),
         }
         .assimilate_storage(&mut storage)
         .unwrap();
