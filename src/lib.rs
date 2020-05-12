@@ -104,6 +104,7 @@ decl_module! {
         // FIXME: this function has complexity O(n^2)!
         // where n is the number of all locations of all currencies
         // this should be run off-chain in substraTEE-worker later
+        #[weight = 10_000]
         pub fn new_currency(origin, loc: Vec<Location>, bootstrappers: Vec<T::AccountId>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
             let cid = CurrencyIdentifier::from(blake2_256(&(loc.clone(), bootstrappers.clone()).encode()));
